@@ -7,6 +7,8 @@ import (
 	"github.com/joho/godotenv"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"go_echo_rest/model"
+	
 )
 
 var database *gorm.DB 
@@ -29,6 +31,8 @@ func DatabaseInit(){
 	if e!=nil{
 		panic(e)
 	}
+
+	database.AutoMigrate(&model.ToDo{})
 }
 
 func DB() *gorm.DB{
