@@ -39,4 +39,24 @@ func CreateToDo(c echo.Context) error {
 	return c.JSON(http.StatusOK, response)
 }
 
-//Get a todo ask f
+//Get Todo
+func GetTodo(c echo.Context) error {
+		id := c.Param("id")
+		db := config.DB()
+	
+		var todos []*model.ToDo
+	
+		if res := db.Find(&todos, id); res.Error != nil {
+			data := map[string]interface{}{
+				"message": res.Error.Error(),
+			}
+	
+			return c.JSON(http.StatusOK, data)
+		}
+	
+		response := map[string]interface{}{
+			"data": todos[0],
+		}
+	
+		return c.JSON(http.StatusOK, response)
+}
