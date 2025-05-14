@@ -6,23 +6,20 @@ import (
 	"go_echo_rest/config"
 	"go_echo_rest/model"
 	"github.com/labstack/echo/v4"
+	"log"
 )
 
 //Creating a new todo task
 func CreateTodo(c echo.Context) error {
-	b := new(model.ToDo)
+	var todo model.ToDo 
 	db := config.DB()
 
-	if err := c.Bind(b); err!=nil{
+	if err := c.Bind(&todo); err!=nil{
+		log.Println("An error occured", err)
 		data := map[string]interface{}{
-			"message": err.Error(),
+			"message": "Invalid request body",
 		}
-		return c.JSON(http.StatusInternalServerError, data)
-	}
-
-	todo := &model.ToDo{
-		Title: b.Title,
-		Description: b.Description,
+		return c.JSON(http.StatusBadRequest, data)
 	}
 
 	if err:= db.Create(&todo).Error; err!=nil {
@@ -33,7 +30,7 @@ func CreateTodo(c echo.Context) error {
 	}
 
 	response := map[string]interface{}{
-		"data":b,
+		"data": todo,
 	}
 
 	return c.JSON(http.StatusOK, response)
@@ -42,23 +39,16 @@ func CreateTodo(c echo.Context) error {
 //Get Todo
 func GetTodo(c echo.Context) error {
 		id := c.Param("id")
+		fmt.Println(id)
 		db := config.DB()
 	
-		var todos []*model.ToDo
+		var todo model.ToDo
 	
-		if res := db.Find(&todos, id); res.Error != nil {
-			data := map[string]interface{}{
-				"message": res.Error.Error(),
-			}
-	
-			return c.JSON(http.StatusOK, data)
+		if res := db.First(&todos, id); res.Error != nil {
+		
 		}
 	
-		response := map[string]interface{}{
-			"data": todos[0],
-		}
-	
-		return c.JSON(http.StatusOK, response)
+		return SuccessResponse(c, todo)
 }
 
 //update 
@@ -97,9 +87,12 @@ func UpdateTodo(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, data)
 	}
 
-	response := map[string]interface{}{
-		"data": existing_todo,
-	}
+	return SuccessResponse(c, existing_todo)
+}
 
+func SuccessResponse(c, data any) nil{
+	response := map[string]interface{}{
+		"info": data,
+	}
 	return c.JSON(http.StatusOK, response)
 }
