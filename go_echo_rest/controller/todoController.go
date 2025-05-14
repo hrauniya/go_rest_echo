@@ -1,87 +1,108 @@
 package controller
 
-
 import (
-	"net/http"
 	"go_echo_rest/config"
 	"go_echo_rest/model"
-	"github.com/labstack/echo/v4"
+	"go_echo_rest/dto"
 	"log"
+	"net/http"
+	"strconv"
+	"github.com/labstack/echo/v4"
 )
 
-//Creating a new todo task
+//Create new todo task
 func CreateTodo(c echo.Context) error {
-	var todo model.ToDo 
+	 
+	db := config.DB()
+	todoDTO := new(dto.CreateTodoDTO)
+
+	if err := c.Bind(&todoDTO); err!=nil{
+		log.Println("Invalid request body passed in by client", err)
+		data := map[string]interface{}{
+			"message": "Invalid request body",
+		}
+		return c.JSON(http.StatusBadRequest, data)
+	}
+	
+	todo := model.ToDo{
+		Title : todoDTO.Title,
+		Description : todoDTO.Description,
+	}
+
+	if err:= db.Create(&todo).Error; err!=nil {
+		log.Printf("An error occured while creating record", err)
+		data := map[string]interface{}{
+			"message" : "An error occured while trying to create your record",
+		}
+		return c.JSON(http.StatusInternalServerError, data)
+	}
+	return SuccessResponse(c,todo)
+}
+
+//Get specific todo task
+func GetTodo(c echo.Context) error {
+
+			//sanitize id parameter, check for validity
+			requestId := c.Param("id")
+			id, err := strconv.Atoi(requestId)
+			if err != nil {
+				return c.JSON(http.StatusBadRequest, map[string]interface{}{
+					"message": "Invalid ID parameter",
+				})
+			}
+			db := config.DB()
+
+			var todo model.ToDo
+		
+			if res := db.First(&todo, id); res.Error != nil {
+				data := map[string]interface{}{
+					"message" : "Record not found!",
+				}
+				return c.JSON(http.StatusNotFound, data)
+			}
+		
+			return SuccessResponse(c, todo)
+}
+
+//Update specific todo task
+func UpdateTodo(c echo.Context) error {
+
+	requestId := c.Param("id")
+	id, err := strconv.Atoi(requestId)
+	if err != nil {
+		log.Printf("Invalid ID parameter was passed", err)
+		return c.JSON(http.StatusBadRequest, map[string]interface{}{
+			"message": "Invalid ID parameter",
+		})
+	}
+	updateTodoDTO:= new(dto.UpdateTodoDTO)
 	db := config.DB()
 
-	if err := c.Bind(&todo); err!=nil{
-		log.Println("An error occured", err)
+	if err := c.Bind(&updateTodoDTO); err != nil {
+		log.Printf("Invalid request body", err)
 		data := map[string]interface{}{
 			"message": "Invalid request body",
 		}
 		return c.JSON(http.StatusBadRequest, data)
 	}
 
-	if err:= db.Create(&todo).Error; err!=nil {
-		data := map[string]interface{}{
-			"message" : err.Error(),
-		}
-		return c.JSON(http.StatusInternalServerError, data)
-	}
-
-	response := map[string]interface{}{
-		"data": todo,
-	}
-
-	return c.JSON(http.StatusOK, response)
-}
-
-//Get Todo
-func GetTodo(c echo.Context) error {
-		id := c.Param("id")
-		fmt.Println(id)
-		db := config.DB()
-	
-		var todo model.ToDo
-	
-		if res := db.First(&todos, id); res.Error != nil {
-		
-		}
-	
-		return SuccessResponse(c, todo)
-}
-
-//update 
-func UpdateTodo(c echo.Context) error {
-	id := c.Param("id")
-	b := new(model.ToDo)
-	db := config.DB()
-
-	// Binding data
-	if err := c.Bind(b); err != nil {
-		data := map[string]interface{}{
-			"message": err.Error(),
-		}
-
-		return c.JSON(http.StatusInternalServerError, data)
-	}
-
-	existing_todo := new(model.ToDo)
+	var existing_todo model.ToDo
 
 	if err := db.First(&existing_todo, id).Error; err != nil {
+		log.Printf("Record not found", err)
 		data := map[string]interface{}{
-			"message": err.Error(),
+			"message": "Request record was not found in table",
 		}
-
 		return c.JSON(http.StatusNotFound, data)
 	}
 
-	existing_todo.Title = b.Title
-	existing_todo.Description = b.Description
-	existing_todo.Status = b.Status
+	existing_todo.Title = updateTodoDTO.Title
+	existing_todo.Description = updateTodoDTO.Description
+	existing_todo.Status = updateTodoDTO.Status
 	if err := db.Save(&existing_todo).Error; err != nil {
+		log.Printf("Updated record could not be saved", err)
 		data := map[string]interface{}{
-			"message": err.Error(),
+			"message": "Could not save updated record in table",
 		}
 
 		return c.JSON(http.StatusInternalServerError, data)
