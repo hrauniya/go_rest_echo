@@ -12,38 +12,67 @@ import (
 	"go_echo_rest/model"
 )
 
-var JWTSecret = []byte(getJWTSecret())
+var AccessJWTSecret = []byte(getAccessTokenJWTSecret())
+var RefreshJWTSecret = []byte(getRefreshTokenJWTSecret())
 
 
 type Claims struct {
 	UserID uint `json:"user_id"`
+	Type   string `json:"type"`
 	jwt.RegisteredClaims
 }
 
+type RefreshClaims struct {
+	UserID uint   `json:"user_id"`
+	Type   string `json:"type"`
+	jwt.RegisteredClaims
+}
 
-func getJWTSecret() string {
-	secret := os.Getenv("JWT_SECRET")
+func getAccessTokenJWTSecret() string {
+	secret := os.Getenv("secret")
 	return secret
 }
 
+func getRefreshTokenJWTSecret() string {
+	refreshtokensecret := os.Getenv("refreshsecretkey")
+	return refreshtokensecret
+}
 
-func GenerateToken(user model.User) (string, error) {
+func GenerateAccessToken(user model.User) (string, error) {
 	claims := &Claims{
 		UserID: user.ID,
+		Type:   "access",
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(15 * time.Minute)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			Subject:   user.Username,
 		},
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-
-	tokenString, err := token.SignedString(JWTSecret)
+	tokenString, err := token.SignedString(AccessJWTSecret)
 	if err != nil {
 		return "", err
 	}
+	return tokenString, nil
+}
 
+func GenerateRefreshToken(user model.User) (string, error) {
+	claims := &RefreshClaims{
+		UserID: user.ID,
+		Type:   "refresh", 
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(7 * 24 * time.Hour)), 
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			Subject:   user.Username,
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, err := token.SignedString(RefreshJWTSecret)
+	if err != nil {
+		return "", err
+	}
 	return tokenString, nil
 }
 
@@ -65,7 +94,10 @@ func JWTMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, errors.New("unexpected signing method")
 			}
-			return JWTSecret, nil
+			if claims.Type != "access" {
+				return nil, errors.New("invalid token type for this endpoint")
+			}
+			return AccessJWTSecret, nil
 		})
 
 		if err != nil {
@@ -81,6 +113,31 @@ func JWTMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 
 		return next(c)
 	}
+}
+
+
+func ValidateRefreshToken(tokenString string) (*RefreshClaims, error) {
+	claims := &RefreshClaims{}
+	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, errors.New("unexpected signing method")
+		}
+		
+		if claims.Type != "refresh" {
+			return nil, errors.New("invalid token type: expected refresh token")
+		}
+		return 	RefreshJWTSecret, nil
+	})
+
+	if err != nil {
+		return nil, echo.NewHTTPError(http.StatusUnauthorized, "invalid or expired refresh token")
+	}
+
+	if !token.Valid {
+		return nil, echo.NewHTTPError(http.StatusUnauthorized, "invalid refresh token")
+	}
+
+	return claims, nil
 }
 
 

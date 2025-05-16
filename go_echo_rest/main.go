@@ -31,6 +31,7 @@ func main() {
 
 	e.POST("/register", controller.Register)
 	e.POST("/login", controller.Login)
+	e.POST("/refresh", controller.RefreshToken)
 
 	todoRoute := e.Group("/todo")
 	todoRoute.Use(middleware.JWTMiddleware)
